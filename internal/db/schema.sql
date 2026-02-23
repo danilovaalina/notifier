@@ -17,7 +17,7 @@ create table if not exists notifications
     recipient      text                 not null,
     message        text                 not null,
     status         notification_status  not null,
-    retry_count    bigint               not null,
+    retry_count    bigint               not null default 0,
     scheduled_time timestamp            not null,
     created        timestamp            not null default now(),
     updated        timestamp            not null default now()
