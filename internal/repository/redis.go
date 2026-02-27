@@ -125,7 +125,7 @@ func (r *Repository) getNotificationFromRedis(ctx context.Context, id uuid.UUID)
 		Status:              result["status"],
 		RetryCount:          result["retry_count"],
 		ScheduledTime:       result["scheduled_time"],
-		Created:             result["created_at"],
+		Created:             result["created"],
 	}
 
 	n, err := convertToNotification(nc)

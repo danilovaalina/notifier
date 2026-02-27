@@ -8,11 +8,36 @@ services:
       POSTGRES_PASSWORD: notifier_pass
       POSTGRES_DB: notifier
     networks:
-      - internal
+      - notifier-network
     volumes:
       - postgres:/var/lib/postgresql/data
+  rabbitmq:
+    build:
+      context: .
+      dockerfile: Dockerfile.rabbitmq
+    container_name: notifier-mq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "check_running" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifier-network
+  redis:
+    image: redis:8.0.6-alpine3.21
+    container_name: notifier-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - notifier-network
 volumes:
   postgres:
 networks:
-  internal:
+  notifier-network:
     driver: bridge

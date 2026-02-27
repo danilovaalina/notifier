@@ -6,6 +6,7 @@ import (
 
 	"notifier/internal/model"
 
+	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 )
 
@@ -16,17 +17,22 @@ type Repository interface {
 	GetReadyNotifications(ctx context.Context, limit int) ([]model.Notification, error)
 }
 
+type Queue interface {
+	Publish(ctx context.Context, n model.Notification) error
+}
+
 type Sender interface {
 	Send(ctx context.Context, n model.Notification) error
 }
 
 type Service struct {
 	repo   Repository
+	queue  Queue
 	sender Sender
 }
 
-func New(repo Repository, sender Sender) *Service {
-	return &Service{repo: repo, sender: sender}
+func New(repo Repository, queue Queue, sender Sender) *Service {
+	return &Service{repo: repo, queue: queue, sender: sender}
 }
 
 // CreateNotification создаёт уведомление с валидацией
@@ -45,6 +51,10 @@ func (s *Service) CreateNotification(ctx context.Context, notification model.Not
 	n, err := s.repo.CreateNotification(ctx, notification)
 	if err != nil {
 		return model.Notification{}, err
+	}
+
+	if err = s.queue.Publish(ctx, n); err != nil {
+		return n, errors.Wrap(err, "failed to queue notification")
 	}
 
 	return n, nil
@@ -88,11 +98,6 @@ func (s *Service) ProcessNotification(ctx context.Context, id uuid.UUID) error {
 		return s.handleSendError(ctx, n)
 	}
 
-	err = s.sender.Send(ctx, n)
-	if err != nil {
-		return s.handleSendError(ctx, n)
-	}
-
 	_, err = s.repo.UpdateNotification(ctx, model.Notification{
 		ID:     id,
 		Status: model.StatusSent,
@@ -106,6 +111,7 @@ func (s *Service) ProcessNotification(ctx context.Context, id uuid.UUID) error {
 
 func (s *Service) handleSendError(ctx context.Context, n model.Notification) error {
 	n.RetryCount++
+
 	if n.RetryCount > 5 {
 		_, err := s.repo.UpdateNotification(ctx, model.Notification{
 			ID:         n.ID,
@@ -119,9 +125,6 @@ func (s *Service) handleSendError(ctx context.Context, n model.Notification) err
 	}
 
 	delaySec := 30 * (1 << n.RetryCount)
-	if delaySec > 3600 {
-		delaySec = 3600
-	}
 	newTime := time.Now().Add(time.Duration(delaySec) * time.Second)
 
 	_, err := s.repo.UpdateNotification(ctx, model.Notification{
@@ -134,5 +137,5 @@ func (s *Service) handleSendError(ctx context.Context, n model.Notification) err
 		return err
 	}
 
-	return nil
+	return s.queue.Publish(ctx, n)
 }

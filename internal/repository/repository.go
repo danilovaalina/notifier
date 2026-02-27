@@ -134,7 +134,7 @@ func (r *Repository) UpdateNotification(ctx context.Context, notification model.
 // GetReadyNotifications — возвращает уведомления для отправки (без кэширования)
 func (r *Repository) GetReadyNotifications(ctx context.Context, limit int) ([]model.Notification, error) {
 	query, args, _ := r.builder.Select(
-		"id", "notification_channel", "recipient", "message",
+		"id", "channel", "recipient", "message",
 		"status", "retry_count", "scheduled_time", "created",
 	).From("notification").
 		Where(sq.And{
