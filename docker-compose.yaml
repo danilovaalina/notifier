@@ -2,11 +2,11 @@ services:
   postgres:
     image: postgres:17
     ports:
-      - "5433:5432"
+      - "${DB_PORT:-5433}:5432"
     environment:
-      POSTGRES_USER: notifier
-      POSTGRES_PASSWORD: notifier_pass
-      POSTGRES_DB: notifier
+      POSTGRES_USER: ${DB_USER:-notifier}
+      POSTGRES_PASSWORD:  ${DB_PASSWORD:-notifier_pass}
+      POSTGRES_DB: ${DB_NAME:-notifier}
     networks:
       - notifier-network
     volumes:
@@ -20,8 +20,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${MQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${MQ_PASS:-guest}
     healthcheck:
       test: [ "CMD", "rabbitmq-diagnostics", "-q", "check_running" ]
       interval: 10s
@@ -34,6 +34,14 @@ services:
     container_name: notifier-redis
     ports:
       - "6379:6379"
+    networks:
+      - notifier-network
+  mailhog:
+    image: mailhog/mailhog
+    container_name: notifier-mailhog
+    ports:
+      - "1025:1025" # SMTP сервер (куда приложение шлет письма)
+      - "8025:8025" # HTTP интерфейс (где вы смотрите письма)
     networks:
       - notifier-network
 volumes:

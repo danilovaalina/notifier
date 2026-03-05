@@ -8,6 +8,7 @@ import (
 	"notifier/internal/model"
 
 	"github.com/cockroachdb/errors"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
@@ -30,6 +31,7 @@ func New(service Service) *API {
 		Echo:    echo.New(),
 		service: service,
 	}
+	a.Validator = &CustomValidator{validator: validator.New()}
 
 	api := a.Group("/api")
 
@@ -55,10 +57,10 @@ func (a *API) ping(c echo.Context) error {
 
 // createNotificationRequest — входные данные для создания уведомления
 type createNotificationRequest struct {
-	Channel       string `json:"channel" validate:"required,oneof=email telegram"`
-	Recipient     string `json:"recipient" validate:"required"`
-	Message       string `json:"message" validate:"required,min=1,max=4096"`
-	ScheduledTime string `json:"scheduled_time" validate:"required"` // RFC3339
+	Channel       string    `json:"channel" validate:"required,oneof=email telegram"`
+	Recipient     string    `json:"recipient" validate:"required"`
+	Message       string    `json:"message" validate:"required,min=1,max=4096"`
+	ScheduledTime time.Time `json:"scheduled_time" validate:"required"` // RFC3339
 }
 
 // createNotification — POST /api/notify
@@ -73,18 +75,11 @@ func (a *API) createNotification(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 
-	scheduledTime, err := time.Parse(time.RFC3339, req.ScheduledTime)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{
-			"error": "invalid scheduled_time format",
-		})
-	}
-
 	notification := model.Notification{
 		Channel:       model.NotificationChannel(req.Channel),
 		Recipient:     req.Recipient,
 		Message:       req.Message,
-		ScheduledTime: scheduledTime,
+		ScheduledTime: req.ScheduledTime.UTC(),
 	}
 
 	n, err := a.service.CreateNotification(c.Request().Context(), notification)
@@ -176,7 +171,7 @@ func (a *API) notificationFromModel(notification model.Notification) notificatio
 		Message:       notification.Message,
 		Status:        string(notification.Status),
 		RetryCount:    notification.RetryCount,
-		ScheduledTime: notification.ScheduledTime,
+		ScheduledTime: notification.ScheduledTime.UTC(),
 		Created:       notification.Created,
 	}
 }

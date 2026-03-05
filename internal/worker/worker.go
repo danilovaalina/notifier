@@ -3,13 +3,14 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"time"
 
 	"notifier/internal/model"
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/rs/zerolog/log"
 )
 
 type NotificationService interface {
@@ -25,17 +26,17 @@ type Worker struct {
 func New(amqpURL string, svc NotificationService) (*Worker, error) {
 	conn, err := amqp.Dial(amqpURL)
 	if err != nil {
-		return nil, errors.Wrap(err, "worker failed to connect to rabbitmq")
+		return nil, errors.WithStack(err)
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.Wrap(err, "worker failed to open channel")
+		return nil, errors.WithStack(err)
 	}
 
 	if err = ch.Qos(1, 0, false); err != nil {
-		return nil, errors.Wrap(err, "worker failed to set QoS")
+		return nil, errors.WithStack(err)
 	}
 
 	return &Worker{
@@ -53,32 +54,40 @@ func (w *Worker) Start(ctx context.Context) {
 		false, false, false, nil,
 	)
 	if err != nil {
-		log.Fatal("failed to register a consumer:", err)
+		log.Fatal().Stack().Err(err).Send()
 	}
 
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("Stopping worker: context cancelled")
+				log.Info().Msg("stopping worker: context cancelled")
 				return
 
 			case d, ok := <-msgs:
 				if !ok {
-					log.Println("RabbitMQ channel closed")
+					log.Info().Msg("RabbitMQ channel closed")
 					return
 				}
 
 				var n model.Notification
 				if err = json.Unmarshal(d.Body, &n); err != nil {
-					log.Printf("Error decoding message: %v", err)
+					log.Info().Msgf("error decoding message: %v", err)
 					d.Ack(false)
 					continue
 				}
 
+				log.Info().
+					Interface("id", n.ID).
+					Time("scheduled", n.ScheduledTime).
+					Time("actual_received", time.Now()).
+					Msg("worker received message from queue")
+
 				err = w.service.ProcessNotification(ctx, n.ID)
 				if err != nil {
-					log.Printf("Task %s failed: %v", n.ID, err)
+					log.Info().Msgf("task %s failed: %v", n.ID, err)
+					//d.Nack(false, true)
+					//return
 				}
 
 				d.Ack(false)

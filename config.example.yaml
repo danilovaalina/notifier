@@ -1,0 +1,17 @@
+addr: "0.0.0.0:8081"
+
+db_url: "postgres://user:pass@localhost:5432/dbname?sslmode=disable"
+
+redis_url: "redis://localhost:6379/0"
+
+rabbitmq_url: "amqp://guest:guest@localhost:5672/"
+
+email:
+  host: "smtp.mailtrap.io"
+  port: 587
+  user: "your_user"
+  password: "your_password"
+  from: "no-reply@yourdomain.com"
+
+# Получите у @BotFather
+bot_token: "your_telegram_bot_token_here"

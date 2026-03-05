@@ -38,7 +38,7 @@ func New(repo Repository, queue Queue, sender Sender) *Service {
 // CreateNotification создаёт уведомление с валидацией
 func (s *Service) CreateNotification(ctx context.Context, notification model.Notification) (model.Notification, error) {
 	// Валидация времени
-	if notification.ScheduledTime.Before(time.Now().Add(10 * time.Second)) {
+	if notification.ScheduledTime.Before(time.Now().UTC().Add(10 * time.Second)) {
 		return model.Notification{}, model.ErrInvalidTime
 	}
 
@@ -48,6 +48,7 @@ func (s *Service) CreateNotification(ctx context.Context, notification model.Not
 	}
 
 	notification.ID = uuid.New()
+	notification.Status = model.StatusScheduled
 	n, err := s.repo.CreateNotification(ctx, notification)
 	if err != nil {
 		return model.Notification{}, err
@@ -89,7 +90,7 @@ func (s *Service) ProcessNotification(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	if n.Status != model.StatusScheduled || n.ScheduledTime.After(time.Now()) {
+	if n.Status != model.StatusScheduled {
 		return nil
 	}
 
@@ -125,7 +126,7 @@ func (s *Service) handleSendError(ctx context.Context, n model.Notification) err
 	}
 
 	delaySec := 30 * (1 << n.RetryCount)
-	newTime := time.Now().Add(time.Duration(delaySec) * time.Second)
+	newTime := time.Now().UTC().Add(time.Duration(delaySec) * time.Second)
 
 	_, err := s.repo.UpdateNotification(ctx, model.Notification{
 		ID:            n.ID,

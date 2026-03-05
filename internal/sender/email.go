@@ -17,7 +17,7 @@ type EmailSender struct {
 // NewEmailSender принимает только примитивы.
 // Он универсален для Gmail (587) и Mail.ru (465).
 func NewEmailSender(host string, port int, user, pass, from string) (*EmailSender, error) {
-	if host == "" || user == "" || pass == "" {
+	if host == "" {
 		return nil, errors.New("email sender requires host, user and password")
 	}
 
@@ -27,9 +27,14 @@ func NewEmailSender(host string, port int, user, pass, from string) (*EmailSende
 
 	opts := []mail.Option{
 		mail.WithPort(port),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithUsername(user),
-		mail.WithPassword(pass),
+	}
+
+	if user != "" || pass != "" {
+		opts = append(opts,
+			mail.WithSMTPAuth(mail.SMTPAuthPlain),
+			mail.WithUsername(user),
+			mail.WithPassword(pass),
+		)
 	}
 
 	if port == 465 {

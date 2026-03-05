@@ -2,13 +2,10 @@ create type notification_channel as enum ('email', 'telegram');
 
 create type notification_status as enum (
     'scheduled',
-    'queued',
-    'processing',
     'sent',
     'failed',
     'cancelled'
     );
-
 
 create table if not exists notifications
 (
