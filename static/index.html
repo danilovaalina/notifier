@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Delayed Notifier Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 40px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input, select, textarea { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+
+        /* Статусы */
+        .status { padding: 4px 8px; border-radius: 4px; font-size: 0.85em; text-transform: uppercase; font-weight: bold; }
+        .scheduled { background: #fff3cd; color: #856404; }
+        .sent { background: #d4edda; color: #155724; }
+        .cancelled { background: #e2e3e5; color: #383d41; }
+        .failed { background: #f8d7da; color: #721c24; }
+
+        /* Стили для ID и модального окна */
+        .id-link { color: #007bff; cursor: pointer; text-decoration: underline; font-family: monospace; }
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;
+        }
+        .modal-content { max-width: 500px; width: 90%; background: white; padding: 25px; border-radius: 8px; position: relative; }
+        .modal-content p { margin: 10px 0; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px; }
+        .close-btn { background: #6c757d; margin-top: 15px; width: 100%; }
+
+        .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; }
+        .pagination-info { font-size: 0.9em; color: #666; }
+        .btn-nav { background: #007bff; padding: 5px 15px; }
+        .btn-nav:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Форма создания -->
+    <div class="card">
+        <h2>📝 Создать уведомление</h2>
+        <form id="notifyForm">
+            <select id="channel" name="channel">
+                <option value="email">Email</option>
+                <option value="telegram">Telegram</option>
+            </select>
+            <input type="text" id="recipient" placeholder="Получатель (email или chat_id)" required>
+            <textarea id="message" placeholder="Текст сообщения..." rows="3" required></textarea>
+            <label style="font-size: 0.8em; color: #666;">Время отправки (Местное время):</label>
+            <input type="datetime-local" id="scheduled_time" required>
+            <button type="submit" id="submitBtn">Запланировать</button>
+        </form>
+    </div>
+
+    <!-- Список -->
+    <div class="card">
+        <h2>📊 Список уведомлений</h2>
+        <table id="notifTable">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Канал</th>
+                <th>Статус</th>
+                <th>Запланировано</th>
+                <th>Действие</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr><td colspan="5" style="text-align:center">Загрузка...</td></tr>
+            </tbody>
+        </table>
+        <div class="pagination">
+            <button id="prevBtn" class="btn-nav" onclick="changePage(-1)">← Назад</button>
+            <span class="pagination-info" id="pageInfo">Страница 1</span>
+            <button id="nextBtn" class="btn-nav" onclick="changePage(1)">Вперед →</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно деталей -->
+<div id="detailsModal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <h3>🔍 Детали уведомления</h3>
+        <div id="modalBody"></div>
+        <button class="close-btn" onclick="closeModal()">Закрыть</button>
+    </div>
+</div>
+
+<script>
+    const API_BASE = '/api/notify';
+    const form = document.getElementById('notifyForm');
+
+    // Универсальный обработчик ответов сервера
+    async function handleResponse(res, successMsg) {
+        if (res.ok) {
+            return await res.json().catch(() => ({}));
+        } else {
+            const data = await res.json().catch(() => ({}));
+            const errorText = data.error || data.reason || "Неизвестная ошибка сервера";
+            alert(errorText);
+            throw new Error(errorText);
+        }
+    }
+
+    // Загрузка списка
+    async function fetchList() {
+        try {
+            const res = await fetch(API_BASE);
+            const data = await res.json();
+            const tbody = document.querySelector('#notifTable tbody');
+
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Список уведомлений пуст</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(n => `
+                <tr>
+                    <td><span class="id-link" onclick="showDetails('${n.id}')" title="Нажмите для просмотра">${n.id.substring(0,8)}...</span></td>
+                    <td>${n.channel}</td>
+                    <td><span class="status ${n.status}">${n.status}</span></td>
+                    <td>${new Date(n.scheduled_time).toLocaleString()}</td>
+                    <td>
+                        ${n.status === 'scheduled' ?
+                `<button onclick="cancelNotif('${n.id}')" style="background:#dc3545; padding: 5px 10px; font-size: 0.8em;">Отменить</button>`
+                : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            console.error("Ошибка обновления списка:", err);
+        }
+    }
+
+    // Получение конкретного уведомления
+    async function showDetails(id) {
+        try {
+            const res = await fetch(`${API_BASE}/${id}`);
+            const n = await handleResponse(res);
+
+            document.getElementById('modalBody').innerHTML = `
+                <p><strong>Полный ID:</strong> ${n.id}</p>
+                <p><strong>Канал:</strong> ${n.channel}</p>
+                <p><strong>Статус:</strong> <span class="status ${n.status}">${n.status}</span></p>
+                <p><strong>Получатель:</strong> ${n.recipient}</p>
+                <p><strong>Сообщение:</strong><br><i style="color:#555">${n.message}</i></p>
+                <p><strong>Попыток (Retry):</strong> ${n.retry_count}</p>
+                <p><strong>Запланировано:</strong> ${new Date(n.scheduled_time).toLocaleString()}</p>
+                <p><strong>Создано:</strong> ${new Date(n.created).toLocaleString()}</p>
+            `;
+            document.getElementById('detailsModal').style.display = 'flex';
+        } catch (err) { /* ошибка обработана в handleResponse */ }
+    }
+
+    function closeModal() {
+        document.getElementById('detailsModal').style.display = 'none';
+    }
+
+    // Создание
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerText = "Отправка...";
+
+        const body = {
+            channel: document.getElementById('channel').value,
+            recipient: document.getElementById('recipient').value,
+            message: document.getElementById('message').value,
+            scheduled_time: new Date(document.getElementById('scheduled_time').value).toISOString()
+        };
+
+        try {
+            const res = await fetch(API_BASE, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            await handleResponse(res);
+            form.reset();
+            fetchList();
+        } catch (err) {
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Запланировать";
+        }
+    };
+
+    // Отмена
+    async function cancelNotif(id) {
+        if (!confirm('Вы действительно хотите отменить это уведомление?')) return;
+        try {
+            const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+            if (res.status === 204 || res.ok) {
+                fetchList();
+            } else {
+                await handleResponse(res);
+            }
+        } catch (err) { }
+    }
+
+    // Автообновление раз в 10 секунд (реже, чтобы не спамить)
+    setInterval(fetchList, 10000);
+    fetchList();
+</script>
+</body>
+</html>

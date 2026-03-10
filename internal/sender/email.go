@@ -39,6 +39,8 @@ func NewEmailSender(host string, port int, user, pass, from string) (*EmailSende
 
 	if port == 465 {
 		opts = append(opts, mail.WithSSL())
+	} else if port == 1025 {
+		opts = append(opts, mail.WithTLSPolicy(mail.NoTLS))
 	} else {
 		opts = append(opts, mail.WithTLSPolicy(mail.TLSMandatory))
 	}

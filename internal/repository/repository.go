@@ -14,6 +14,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const defaultLimit = 20
+
 type Repository struct {
 	pool    *pgxpool.Pool
 	redis   *redis.Client
@@ -28,7 +30,7 @@ func New(pool *pgxpool.Pool, redis *redis.Client) *Repository {
 	}
 }
 
-// Create сохраняет уведомление в БД и кэширует статус в Redis
+// CreateNotification сохраняет уведомление в БД и кэширует статус в Redis
 func (r *Repository) CreateNotification(ctx context.Context, n model.Notification) (model.Notification, error) {
 	query := `
 	insert into notifications (id, channel, recipient, message, status, retry_count, scheduled_time)
@@ -136,7 +138,7 @@ func (r *Repository) GetReadyNotifications(ctx context.Context, limit int) ([]mo
 	query, args, _ := r.builder.Select(
 		"id", "channel", "recipient", "message",
 		"status", "retry_count", "scheduled_time", "created",
-	).From("notification").
+	).From("notifications").
 		Where(sq.And{
 			sq.Eq{"status": model.StatusScheduled},
 			sq.LtOrEq{"scheduled_time": time.Now()},
@@ -144,6 +146,55 @@ func (r *Repository) GetReadyNotifications(ctx context.Context, limit int) ([]mo
 		OrderBy("scheduled_time ASC").
 		Limit(uint64(limit)).
 		ToSql()
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	notificationRows, err := pgx.CollectRows[notificationRow](rows, pgx.RowToStructByNameLax[notificationRow])
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.WithStack(model.ErrNotFound)
+		}
+		return nil, errors.WithStack(err)
+	}
+
+	notifications := make([]model.Notification, 0, len(notificationRows))
+	for _, row := range notificationRows {
+		notifications = append(notifications, r.notificationModel(row))
+	}
+
+	return notifications, nil
+}
+
+func (r *Repository) Notifications(ctx context.Context, opts model.NotificationFilter) ([]model.Notification, error) {
+	b := r.builder.
+		Select("id",
+			"channel",
+			"recipient",
+			"message",
+			"status",
+			"retry_count",
+			"scheduled_time",
+			"created",
+			"updated").From("notifications").OrderBy("created DESC")
+
+	if opts.Offset > 0 {
+		b = b.Offset(opts.Offset)
+	}
+
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+
+	b = b.Limit(limit)
+
+	query, args, err := b.ToSql()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {

@@ -38,6 +38,11 @@ type Notification struct {
 	Updated       time.Time
 }
 
+type NotificationFilter struct {
+	Offset uint64
+	Limit  uint64
+}
+
 // Errors
 var (
 	ErrNotFound           = errors.New("notification not found")

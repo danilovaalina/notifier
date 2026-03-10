@@ -15,6 +15,7 @@ type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (model.Notification, error)
 	UpdateNotification(ctx context.Context, notification model.Notification) (model.Notification, error)
 	GetReadyNotifications(ctx context.Context, limit int) ([]model.Notification, error)
+	Notifications(ctx context.Context, opts model.NotificationFilter) ([]model.Notification, error)
 }
 
 type Queue interface {
@@ -108,6 +109,10 @@ func (s *Service) ProcessNotification(ctx context.Context, id uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (s *Service) Notifications(ctx context.Context, opts model.NotificationFilter) ([]model.Notification, error) {
+	return s.repo.Notifications(ctx, opts)
 }
 
 func (s *Service) handleSendError(ctx context.Context, n model.Notification) error {

@@ -17,6 +17,7 @@ type Service interface {
 	CreateNotification(ctx context.Context, notification model.Notification) (model.Notification, error)
 	GetNotification(ctx context.Context, id uuid.UUID) (model.Notification, error)
 	CancelNotification(ctx context.Context, id uuid.UUID) error
+	Notifications(ctx context.Context, opts model.NotificationFilter) ([]model.Notification, error)
 }
 
 // API — HTTP сервер на основе Echo
@@ -33,14 +34,16 @@ func New(service Service) *API {
 	}
 	a.Validator = &CustomValidator{validator: validator.New()}
 
-	api := a.Group("/api")
+	a.Static("/", "./static")
 
+	api := a.Group("/api")
 	api.GET("/ping", a.ping)
 
 	notifications := api.Group("/notify")
 	{
 		notifications.POST("", a.createNotification)
-		notifications.GET("/:id", a.getNotification)
+		notifications.GET("", a.notifications)
+		notifications.GET("/:id", a.notification)
 		notifications.DELETE("/:id", a.cancelNotification)
 	}
 
@@ -100,12 +103,12 @@ func (a *API) createNotification(c echo.Context) error {
 	return c.JSON(http.StatusCreated, a.notificationFromModel(n))
 }
 
-type getNotificationRequest struct {
+type notificationRequest struct {
 	ID uuid.UUID `param:"id" validate:"required"`
 }
 
-func (a *API) getNotification(c echo.Context) error {
-	var req getNotificationRequest
+func (a *API) notification(c echo.Context) error {
+	var req notificationRequest
 
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid ID format"})
@@ -125,6 +128,32 @@ func (a *API) getNotification(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, a.notificationFromModel(n))
+}
+
+type notificationsRequest struct {
+	Limit  uint64 `query:"limit"`
+	Offset uint64 `query:"offset"`
+}
+
+func (a *API) notifications(c echo.Context) error {
+	var req notificationsRequest
+
+	err := c.Bind(&req)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"reason": "invalid request format or params"})
+	}
+
+	opts := model.NotificationFilter{
+		Offset: req.Offset,
+		Limit:  req.Limit,
+	}
+
+	tenders, err := a.service.Notifications(c.Request().Context(), opts)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to get notifications"})
+	}
+
+	return c.JSON(http.StatusOK, a.notificationsFromModel(tenders))
 }
 
 type cancelNotificationRequest struct {
@@ -174,4 +203,13 @@ func (a *API) notificationFromModel(notification model.Notification) notificatio
 		ScheduledTime: notification.ScheduledTime.UTC(),
 		Created:       notification.Created,
 	}
+}
+
+func (a *API) notificationsFromModel(notifications []model.Notification) []notificationResponse {
+	r := make([]notificationResponse, 0, len(notifications))
+	for _, t := range notifications {
+		r = append(r, a.notificationFromModel(t))
+	}
+
+	return r
 }

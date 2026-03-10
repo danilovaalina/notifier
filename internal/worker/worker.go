@@ -85,9 +85,9 @@ func (w *Worker) Start(ctx context.Context) {
 
 				err = w.service.ProcessNotification(ctx, n.ID)
 				if err != nil {
-					log.Info().Msgf("task %s failed: %v", n.ID, err)
+					log.Warn().Interface("id", n.ID).Err(err).Msg("processing failed, retry scheduled")
 					//d.Nack(false, true)
-					//return
+					//continue
 				}
 
 				d.Ack(false)
