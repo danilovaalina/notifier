@@ -20,11 +20,6 @@ const (
 // NotificationChannel — поддерживаемые каналы доставки
 type NotificationChannel string
 
-const (
-	ChannelEmail    NotificationChannel = "email"
-	ChannelTelegram NotificationChannel = "telegram"
-)
-
 // Notification — основная сущность уведомления
 type Notification struct {
 	ID            uuid.UUID
@@ -46,7 +41,6 @@ type NotificationFilter struct {
 // Errors
 var (
 	ErrNotFound           = errors.New("notification not found")
-	ErrCancelled          = errors.New("notification cancelled")
 	ErrInvalidTime        = errors.New("scheduled time must be in the future")
 	ErrUnsupportedChannel = errors.New("unsupported notification channel")
 )

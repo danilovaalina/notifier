@@ -91,10 +91,12 @@
 
 <script>
     const API_BASE = '/api/notify';
+    const LIMIT = 10; // Сколько записей на странице
+    let currentOffset = 0;
     const form = document.getElementById('notifyForm');
 
     // Универсальный обработчик ответов сервера
-    async function handleResponse(res, successMsg) {
+    async function handleResponse(res) {
         if (res.ok) {
             return await res.json().catch(() => ({}));
         } else {
@@ -108,12 +110,18 @@
     // Загрузка списка
     async function fetchList() {
         try {
-            const res = await fetch(API_BASE);
+            const res = await fetch(`${API_BASE}?limit=${LIMIT}&offset=${currentOffset}`);
             const data = await res.json();
             const tbody = document.querySelector('#notifTable tbody');
 
             if (!data || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Список уведомлений пуст</td></tr>';
+                if (currentOffset === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Список уведомлений пуст</td></tr>';
+                } else {
+                    // Если данных нет на текущей странице, откатываемся назад
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Больше записей нет</td></tr>';
+                }
+                updatePaginationControls(data.length);
                 return;
             }
 
@@ -130,9 +138,31 @@
                     </td>
                 </tr>
             `).join('');
+
+            updatePaginationControls(data.length);
         } catch (err) {
             console.error("Ошибка обновления списка:", err);
         }
+    }
+
+    // Управление кнопками
+    function updatePaginationControls(countOnPage) {
+        document.getElementById('prevBtn').disabled = currentOffset === 0;
+        // Если пришло меньше записей, чем лимит значит это последняя страница
+        document.getElementById('nextBtn').disabled = countOnPage < LIMIT;
+
+        const currentPage = Math.floor(currentOffset / LIMIT) + 1;
+        document.getElementById('pageInfo').innerText = `Страница ${currentPage}`;
+    }
+
+    // Смена страницы
+    function changePage(direction) {
+        const newOffset = currentOffset + (direction * LIMIT);
+        if (newOffset >= 0) {
+            currentOffset = newOffset;
+            fetchList();
+        }
+
     }
 
     // Получение конкретного уведомления
