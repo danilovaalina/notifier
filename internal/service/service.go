@@ -64,12 +64,7 @@ func (s *Service) CreateNotification(ctx context.Context, notification model.Not
 
 // GetNotification получает уведомление по ID
 func (s *Service) GetNotification(ctx context.Context, id uuid.UUID) (model.Notification, error) {
-	n, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return model.Notification{}, err
-	}
-
-	return n, nil
+	return s.repo.GetByID(ctx, id)
 }
 
 // CancelNotification отменяет уведомление

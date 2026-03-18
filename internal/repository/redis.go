@@ -47,33 +47,36 @@ func convertToNotificationCache(n model.Notification) notificationCache {
 
 // convertToNotification — конвертирует кэш-структуру обратно в модель
 func convertToNotification(nc notificationCache) (model.Notification, error) {
-	n := model.Notification{
-		ID:        uuid.MustParse(nc.ID),
-		Channel:   model.NotificationChannel(nc.NotificationChannel),
-		Recipient: nc.Recipient,
-		Message:   nc.Message,
-		Status:    model.NotificationStatus(nc.Status),
+	id, err := uuid.Parse(nc.ID)
+	if err != nil {
+		return model.Notification{}, err
 	}
 
 	retryCount, err := strconv.ParseInt(nc.RetryCount, 10, 64)
 	if err != nil {
 		return model.Notification{}, errors.WithDetail(err, "failed to parse retry_count")
 	}
-	n.RetryCount = retryCount
 
 	scheduledTime, err := time.Parse(time.RFC3339Nano, nc.ScheduledTime)
 	if err != nil {
 		return model.Notification{}, errors.WithDetail(err, "failed to parse scheduled_time")
 	}
-	n.ScheduledTime = scheduledTime
 
 	created, err := time.Parse(time.RFC3339Nano, nc.Created)
 	if err != nil {
 		return model.Notification{}, errors.WithDetail(err, "failed to parse created_at")
 	}
-	n.Created = created
 
-	return n, nil
+	return model.Notification{
+		ID:            id,
+		Channel:       model.NotificationChannel(nc.NotificationChannel),
+		Recipient:     nc.Recipient,
+		Message:       nc.Message,
+		Status:        model.NotificationStatus(nc.Status),
+		RetryCount:    retryCount,
+		ScheduledTime: scheduledTime,
+		Created:       created,
+	}, nil
 }
 
 // storeNotificationInRedis — сохраняет уведомление в кэш (хэш)
