@@ -44,7 +44,7 @@ func (s *Service) CreateNotification(ctx context.Context, notification model.Not
 	}
 
 	// Валидация канала
-	if notification.Channel != "email" && notification.Channel != "telegram" {
+	if notification.Channel != model.ChannelEmail && notification.Channel != model.ChannelTelegram {
 		return model.Notification{}, model.ErrUnsupportedChannel
 	}
 

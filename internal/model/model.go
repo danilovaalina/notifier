@@ -20,6 +20,11 @@ const (
 // NotificationChannel — поддерживаемые каналы доставки
 type NotificationChannel string
 
+const (
+	ChannelTelegram NotificationChannel = "telegram"
+	ChannelEmail    NotificationChannel = "email"
+)
+
 // Notification — основная сущность уведомления
 type Notification struct {
 	ID            uuid.UUID

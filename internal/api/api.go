@@ -148,12 +148,12 @@ func (a *API) notifications(c echo.Context) error {
 		Limit:  req.Limit,
 	}
 
-	tenders, err := a.service.Notifications(c.Request().Context(), opts)
+	notifications, err := a.service.Notifications(c.Request().Context(), opts)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to get notifications"})
 	}
 
-	return c.JSON(http.StatusOK, a.notificationsFromModel(tenders))
+	return c.JSON(http.StatusOK, a.notificationsFromModel(notifications))
 }
 
 type cancelNotificationRequest struct {

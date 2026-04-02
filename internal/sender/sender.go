@@ -29,7 +29,7 @@ func New(opts ...Option) (Sender, error) {
 	return m, nil
 }
 
-// WithEmail — опция для добавления Email отправителя
+// WithEmail - опция для добавления Email отправителя
 func WithEmail(host string, port int, user, pass, from string) Option {
 	return func(m *MultiSender) error {
 		s, err := NewEmailSender(host, port, user, pass, from)
@@ -41,7 +41,7 @@ func WithEmail(host string, port int, user, pass, from string) Option {
 	}
 }
 
-// WithTelegram — опция для добавления Telegram
+// WithTelegram - опция для добавления Telegram
 func WithTelegram(token string) Option {
 	return func(m *MultiSender) error {
 		s, err := NewTelegramSender(token)
@@ -53,7 +53,7 @@ func WithTelegram(token string) Option {
 	}
 }
 
-// MultiSender — отправщик, поддерживающий несколько каналов
+// MultiSender - отправщик, поддерживающий несколько каналов
 type MultiSender struct {
 	senders map[string]Sender
 }
